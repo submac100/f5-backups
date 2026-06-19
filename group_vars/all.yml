@@ -9,15 +9,14 @@ keep_count: 2
 
 # Destination backups repository (NOT this repo). Edit to your archive repo.
 # Use the host/path WITHOUT the https:// — the play injects the token.
-backups_repo: "github.com/your-org/f5-ucs-archive.git"
+backups_repo: "github.com/submac100/archives.git"
 backups_branch: "main"
 
 # Commit identity
-git_user_name:  "AWX F5 Backup"
-git_user_email: "awx-backup@your-org.example"
+git_user_name:  "Submac100"
+git_user_email: "richard@saltt.tech"
 
 # Set false to KEEP the UCS on the device after download (e.g. for fast local
 # restore). Default removes the transient UCS so device disk doesn't fill.
 remove_remote_ucs: true
 
-backups_repo: "github.com/submac100/archives.git"
