@@ -24,7 +24,6 @@
         state: directory
         mode: "0750"
       delegate_to: localhost
-      run_once: true
 
     - name: Persist the running configuration to disk
       f5networks.f5_modules.bigip_config:
@@ -34,7 +33,7 @@
     - name: Create and download the UCS archive
       f5networks.f5_modules.bigip_ucs_fetch:
         src: "{{ ucs_name }}"          # name of the UCS created on the device
-        dest: "{{ staging_dir }}"      # local directory the file is saved into
+        dest: "{{ staging_dir }}/{{ ucs_name }}"      # local directory the file is saved into
         create_on_missing: true
         force: true
         provider: "{{ f5_provider }}"
