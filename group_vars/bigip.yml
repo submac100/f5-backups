@@ -6,7 +6,7 @@ ansible_connection: local
 # f5_username / f5_password are injected by an AWX credential (see README).
 f5_provider:
   server: "{{ ansible_host }}"
-  server_port: 443
+  server_port: 8443
   user: "{{ f5_username }}"
   password: "{{ f5_password }}"
   validate_certs: false          # lab only — set true + supply a CA bundle in prod
