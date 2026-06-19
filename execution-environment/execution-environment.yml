@@ -1,0 +1,12 @@
+---
+version: 3
+
+images:
+  base_image:
+    # awx-ee 24.6.1 matches awx-operator 2.19.1; published multi-arch (incl. arm64),
+    # so it builds and runs natively on Apple Silicon.
+    name: quay.io/ansible/awx-ee:24.6.1
+
+dependencies:
+  galaxy: requirements.yml
+  # f5networks.f5_modules is pure-Python over the REST API; no extra system deps needed.

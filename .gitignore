@@ -1,0 +1,5 @@
+# Never commit captured backups or transient working dirs to the PLAYBOOK repo.
+.staging/
+.backup-repo/
+*.ucs
+*.retry

@@ -1,0 +1,122 @@
+---
+# ============================================================================
+# F5 BIG-IP UCS backup -> git, with per-device n-keep_count retention.
+#
+#   Play 1  (hosts: bigip)     persist config, create + download a UCS per device
+#   Play 2  (hosts: localhost) clone archive repo, add new UCS, prune old, push
+#
+# Secrets expected at runtime (from AWX credentials or --extra-vars):
+#   f5_username, f5_password   - BIG-IP backup service account
+#   git_pat                    - token with write access to the archive repo
+# ============================================================================
+
+- name: Capture UCS backups from BIG-IP devices
+  hosts: bigip
+  gather_facts: false
+  vars:
+    backup_date: "{{ lookup('pipe', 'date -u +%Y-%m-%d') }}"
+    ucs_name: "{{ inventory_hostname }}-{{ backup_date }}.ucs"
+
+  tasks:
+    - name: Ensure the local staging directory exists
+      ansible.builtin.file:
+        path: "{{ staging_dir }}"
+        state: directory
+        mode: "0750"
+      delegate_to: localhost
+      run_once: true
+
+    - name: Persist the running configuration to disk
+      f5networks.f5_modules.bigip_config:
+        save: true
+        provider: "{{ f5_provider }}"
+
+    - name: Create and download the UCS archive
+      f5networks.f5_modules.bigip_ucs_fetch:
+        src: "{{ ucs_name }}"          # name of the UCS created on the device
+        dest: "{{ staging_dir }}"      # local directory the file is saved into
+        create_on_missing: true
+        force: true
+        provider: "{{ f5_provider }}"
+
+    - name: Remove the transient UCS from the device
+      f5networks.f5_modules.bigip_command:
+        commands:
+          - "delete sys ucs {{ ucs_name }}"
+        provider: "{{ f5_provider }}"
+      when: remove_remote_ucs | bool
+
+
+- name: Export backups to git and enforce retention
+  hosts: localhost
+  gather_facts: false
+  vars:
+    backup_date: "{{ lookup('pipe', 'date -u +%Y-%m-%d') }}"
+
+  tasks:
+    - name: Confirm at least one UCS was captured this run
+      ansible.builtin.find:
+        paths: "{{ staging_dir }}"
+        patterns: "*.ucs"
+      register: staged
+      failed_when: staged.matched == 0
+
+    - name: Clone the backups archive repository
+      ansible.builtin.git:
+        repo: "https://{{ git_pat }}@{{ backups_repo }}"
+        dest: "{{ work_dir }}"
+        version: "{{ backups_branch }}"
+        force: true
+      no_log: true
+
+    - name: Copy the freshly captured UCS files into the archive
+      ansible.builtin.copy:
+        src: "{{ item.path }}"
+        dest: "{{ work_dir }}/{{ item.path | basename }}"
+        mode: "0640"
+      loop: "{{ staged.files }}"
+      loop_control:
+        label: "{{ item.path | basename }}"
+
+    - name: Enforce per-device retention (keep newest {{ keep_count }})
+      ansible.builtin.shell: |
+        set -euo pipefail
+        cd "{{ work_dir }}"
+        # Device prefix = filename minus the trailing -YYYY-MM-DD.ucs
+        for dev in $(ls *.ucs 2>/dev/null \
+                     | sed -E 's/-[0-9]{4}-[0-9]{2}-[0-9]{2}\.ucs$//' | sort -u); do
+          # ISO dates sort chronologically; drop everything except the newest N
+          ls "${dev}"-*.ucs | sort | head -n "-{{ keep_count }}" | while read -r old; do
+            git rm -f --quiet --ignore-unmatch "$old"
+          done
+        done
+      args:
+        executable: /bin/bash
+      register: prune
+      changed_when: prune.stdout | length > 0
+
+    - name: Stage, commit and push the changes
+      ansible.builtin.shell: |
+        set -euo pipefail
+        cd "{{ work_dir }}"
+        git config user.name  "{{ git_user_name }}"
+        git config user.email "{{ git_user_email }}"
+        git add -A
+        if git diff --cached --quiet; then
+          echo "NO_CHANGES"
+        else
+          git commit -q -m "F5 UCS backup {{ backup_date }}"
+          git push -q origin "{{ backups_branch }}"
+          echo "PUSHED"
+        fi
+      args:
+        executable: /bin/bash
+      no_log: true
+      register: push_result
+      changed_when: "'PUSHED' in push_result.stdout"
+
+    - name: Backup summary
+      ansible.builtin.debug:
+        msg: >-
+          Captured {{ staged.matched }} UCS file(s);
+          archive push result: {{ 'pushed' if 'PUSHED' in push_result.stdout else 'no changes' }}.

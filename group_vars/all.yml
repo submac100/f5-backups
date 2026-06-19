@@ -1,0 +1,21 @@
+---
+# Local working directories inside the execution environment (shared across plays;
+# the whole job runs in one EE container, so /tmp is shared between hosts and plays).
+staging_dir: "/tmp/f5-ucs/staging"      # where fetched UCS files land
+work_dir:    "/tmp/f5-ucs/repo"         # local clone of the backups repo
+
+# Retention: keep the current + N-1 previous backups per device (n-2 => keep 2).
+keep_count: 2
+
+# Destination backups repository (NOT this repo). Edit to your archive repo.
+# Use the host/path WITHOUT the https:// — the play injects the token.
+backups_repo: "github.com/your-org/f5-ucs-archive.git"
+backups_branch: "main"
+
+# Commit identity
+git_user_name:  "AWX F5 Backup"
+git_user_email: "awx-backup@your-org.example"
+
+# Set false to KEEP the UCS on the device after download (e.g. for fast local
+# restore). Default removes the transient UCS so device disk doesn't fill.
+remove_remote_ucs: true
