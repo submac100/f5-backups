@@ -19,3 +19,5 @@ git_user_email: "awx-backup@your-org.example"
 # Set false to KEEP the UCS on the device after download (e.g. for fast local
 # restore). Default removes the transient UCS so device disk doesn't fill.
 remove_remote_ucs: true
+
+backups_repo: "github.com/submac100/archives.git"
